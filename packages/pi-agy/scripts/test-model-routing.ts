@@ -295,6 +295,57 @@ assert.ok(
   ),
 );
 
+// Test Gemini tool call thought signature preservation and fallback sentinel
+const geminiModel = {
+  ...model,
+  id: "gemini-3.7-flash",
+} as Model<Api>;
+
+const geminiContext = {
+  messages: [
+    { role: "user", content: "hello", timestamp: Date.now() },
+    {
+      role: "assistant",
+      content: [
+        { type: "toolCall", id: "call-unsigned", name: "bash", arguments: { command: "ls" } },
+        {
+          type: "toolCall",
+          id: "call-signed",
+          name: "read",
+          arguments: { path: "a.ts" },
+          thoughtSignature: "real-sig-123",
+        },
+      ],
+      timestamp: Date.now(),
+    },
+    {
+      role: "toolResult",
+      toolCallId: "call-unsigned",
+      toolName: "bash",
+      content: [{ type: "text", text: "ok" }],
+      isError: false,
+      timestamp: Date.now(),
+    },
+  ],
+} as Context;
+
+const geminiContents = convertMessages(geminiModel, geminiContext, "gemini-3.7-flash-tiered");
+assert.equal(geminiContents.length, 3);
+const modelParts = geminiContents[1]?.parts || [];
+assert.equal(modelParts.length, 2);
+
+// Unsigned call must receive sentinel to prevent HTTP 400
+assert.deepEqual(modelParts[0], {
+  functionCall: { name: "bash", args: { command: "ls" } },
+  thoughtSignature: "skip_thought_signature_validator",
+});
+
+// Signed call must preserve its original signature
+assert.deepEqual(modelParts[1], {
+  functionCall: { name: "read", args: { path: "a.ts" } },
+  thoughtSignature: "real-sig-123",
+});
+
 // Test consecutive same-role message merging
 const consecutiveContext = {
   messages: [
