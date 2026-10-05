@@ -159,6 +159,12 @@ export function convertMessages(
             parts.push({ text: sanitizeText(block.thinking) });
           }
         } else if (block.type === "toolCall") {
+          const isGemini = model.id.startsWith("gemini-") || runtimeModel.startsWith("gemini-");
+          const sig =
+            (block as { thoughtSignature?: string }).thoughtSignature ??
+            (block as { thinkingSignature?: string }).thinkingSignature;
+          const thoughtSignature =
+            sig || (isGemini ? "skip_thought_signature_validator" : undefined);
           parts.push({
             functionCall: {
               name: block.name,
@@ -167,7 +173,7 @@ export function convertMessages(
                 ? { id: sanitizeToolCallId(block.id || "", block.name) }
                 : {}),
             },
-            ...(block.thoughtSignature ? { thoughtSignature: block.thoughtSignature } : {}),
+            ...(thoughtSignature ? { thoughtSignature } : {}),
           });
         }
       }
@@ -625,9 +631,11 @@ export async function streamResponse(
               partial: output,
             });
           }
+          const partSig =
+            part.thoughtSignature ?? (part as { thought_signature?: string }).thought_signature;
           if (isThinking && currentBlock.type === "thinking") {
             currentBlock.thinking += part.text;
-            if (part.thoughtSignature) currentBlock.thinkingSignature = part.thoughtSignature;
+            if (partSig) currentBlock.thinkingSignature = partSig;
             stream.push({
               type: "thinking_delta",
               contentIndex: blockIndex(),
@@ -636,7 +644,7 @@ export async function streamResponse(
             });
           } else if (!isThinking && currentBlock.type === "text") {
             currentBlock.text += part.text;
-            if (part.thoughtSignature) currentBlock.textSignature = part.thoughtSignature;
+            if (partSig) currentBlock.textSignature = partSig;
             stream.push({
               type: "text_delta",
               contentIndex: blockIndex(),
@@ -650,12 +658,14 @@ export async function streamResponse(
           hasContent = true;
           finishCurrent();
           const rawId = part.functionCall.id || "";
+          const callSig =
+            part.thoughtSignature ?? (part as { thought_signature?: string }).thought_signature;
           const toolCall: ToolCall = {
             type: "toolCall",
             id: sanitizeToolCallId(rawId, part.functionCall.name),
             name: part.functionCall.name || "",
             arguments: asToolCallArguments(part.functionCall.args),
-            ...(part.thoughtSignature ? { thoughtSignature: part.thoughtSignature } : {}),
+            ...(callSig ? { thoughtSignature: callSig } : {}),
           };
           blocks.push(toolCall);
           ensureStarted();
