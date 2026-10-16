@@ -8,92 +8,87 @@ export const PROVIDER_NAME = "Antigravity";
 /**
  * Public selectable model IDs → backend request model IDs by thinking effort.
  *
- * Catalog mirrors `agy models` (Antigravity CLI), which currently advertises:
- * - Gemini 3.7 Flash (Low / Medium / High)
- * - Gemini 3.6 Flash (Low / Medium / High)
- * - Gemini 3.5 Flash (Low / Medium / High)
- * - Gemini 3.1 Pro (Low / High)
- * - Claude Sonnet 4.6 (Thinking)
- * - Claude Opus 4.6 (Thinking)
+ * Catalog mirrors the Cloud Code Assist catalog as probed on 2026-10-07: the
+ * `agy models` CLI list, `fetchAvailableModels`, and one live request per
+ * runtime ID from this account.
+ * - Gemini 4 Argon (Low / Medium / High), effort-specific runtime IDs. The
+ *   backend hides this family behind a User-Agent floor, so it only appears in
+ *   fetchAvailableModels and only answers when defaultUserAgent() in client.ts
+ *   reports a capable `antigravity/cli/` client
+ * - Gemini 3.8 Flash (tiered runtime, Low / Medium / High)
+ * - Gemini 3.5 Flash Lite (single reasoning level)
+ * - Claude Sonnet 5.5 (Low / Medium / High)
+ * - Claude Opus 5.5 (Low / Medium / High)
  * - GPT-OSS 120B (Medium)
  *
- * Pi exposes those as public model IDs and only surfaces the exact thinking levels
- * advertised by the backend for each model.
+ * Retired by the backend on 2026-10-07, so no longer registered:
+ * Gemini 3.7 Flash, Gemini 3.6 Flash, and Gemini 3.1 Pro return 404.
+ * Gemini 3.5 Flash, Claude Sonnet 4.6, and Claude Opus 4.6 return 200 with a
+ * "no longer available" message instead of an answer.
  *
- * Note: Gemini 3.7 Flash is exposed by Cloud Code Assist as one tiered runtime.
- * The requested thinking effort is sent separately in generationConfig.thinkingConfig.
+ * Note: Gemini 3.8 Flash is exposed as one tiered runtime, and the requested
+ * thinking effort travels separately in generationConfig.thinkingConfig.
  */
 export const ANTIGRAVITY_ROUTING: Record<string, AntigravityRouting> = {
-  "claude-opus-4-6": {
+  "gemini-4-argon": {
+    // Effort-specific runtime IDs, exactly as `agy models` prints them.
+    off: "gemini-4-argon-low",
     routing: {
-      minimal: "claude-opus-4-6-thinking",
-      low: "claude-opus-4-6-thinking",
-      medium: "claude-opus-4-6-thinking",
-      high: "claude-opus-4-6-thinking",
+      minimal: "gemini-4-argon-low",
+      low: "gemini-4-argon-low",
+      medium: "gemini-4-argon-medium",
+      high: "gemini-4-argon-high",
+      xhigh: "gemini-4-argon-high",
     },
-    defaultRequestId: "claude-opus-4-6-thinking",
+    defaultRequestId: "gemini-4-argon-low",
   },
-  // Live fetchAvailableModels exposes `claude-sonnet-4-6` (display: Thinking), not a separate *-thinking id.
-  "claude-sonnet-4-6": {
-    off: "claude-sonnet-4-6",
+  "claude-opus-5-5": {
+    // Claude 5.5 ships three effort-specific runtime IDs in fetchAvailableModels.
+    off: "claude-opus-5-5-low",
     routing: {
-      minimal: "claude-sonnet-4-6",
-      low: "claude-sonnet-4-6",
-      medium: "claude-sonnet-4-6",
-      high: "claude-sonnet-4-6",
-      xhigh: "claude-sonnet-4-6",
+      minimal: "claude-opus-5-5-low",
+      low: "claude-opus-5-5-low",
+      medium: "claude-opus-5-5-medium",
+      high: "claude-opus-5-5-high",
+      xhigh: "claude-opus-5-5-high",
     },
-    defaultRequestId: "claude-sonnet-4-6",
+    defaultRequestId: "claude-opus-5-5-low",
   },
-  "gemini-3.1-pro": {
-    // `gemini-3.1-pro-high` is advertised but currently 400s for agent streamGenerateContent;
-    // `gemini-pro-agent` is the working High runtime id (same display name in fetchAvailableModels).
-    off: "gemini-3.1-pro-low",
+  "claude-sonnet-5-5": {
+    off: "claude-sonnet-5-5-low",
     routing: {
-      minimal: "gemini-3.1-pro-low",
-      low: "gemini-3.1-pro-low",
-      medium: "gemini-3.1-pro-low",
-      high: "gemini-pro-agent",
-      xhigh: "gemini-pro-agent",
+      minimal: "claude-sonnet-5-5-low",
+      low: "claude-sonnet-5-5-low",
+      medium: "claude-sonnet-5-5-medium",
+      high: "claude-sonnet-5-5-high",
+      xhigh: "claude-sonnet-5-5-high",
     },
-    defaultRequestId: "gemini-3.1-pro-low",
+    defaultRequestId: "claude-sonnet-5-5-low",
   },
-  "gemini-3.7-flash": {
-    // `agy models` presents Low/Medium/High labels, but fetchAvailableModels exposes
-    // one requestable runtime ID. Thinking effort belongs in thinkingConfig.
-    off: "gemini-3.7-flash-tiered",
+  "gemini-3.8-flash": {
+    // Same tiered shape as 3.7: one requestable runtime ID, effort in thinkingConfig.
+    off: "gemini-3.8-flash-tiered",
     routing: {
-      minimal: "gemini-3.7-flash-tiered",
-      low: "gemini-3.7-flash-tiered",
-      medium: "gemini-3.7-flash-tiered",
-      high: "gemini-3.7-flash-tiered",
-      xhigh: "gemini-3.7-flash-tiered",
+      minimal: "gemini-3.8-flash-tiered",
+      low: "gemini-3.8-flash-tiered",
+      medium: "gemini-3.8-flash-tiered",
+      high: "gemini-3.8-flash-tiered",
+      xhigh: "gemini-3.8-flash-tiered",
     },
-    defaultRequestId: "gemini-3.7-flash-tiered",
+    defaultRequestId: "gemini-3.8-flash-tiered",
   },
-  "gemini-3.6-flash": {
-    // agy models: gemini-3.6-flash-low / -medium / -high
-    off: "gemini-3.6-flash-low",
+  "gemini-3.5-flash-lite": {
+    // One requestable runtime ID with reasoning on by default. It is not a
+    // `-tiered` ID, so pi-agy never attaches thinkingConfig to it.
+    off: "gemini-3.5-flash-lite",
     routing: {
-      minimal: "gemini-3.6-flash-low",
-      low: "gemini-3.6-flash-low",
-      medium: "gemini-3.6-flash-medium",
-      high: "gemini-3.6-flash-high",
-      xhigh: "gemini-3.6-flash-high",
+      minimal: "gemini-3.5-flash-lite",
+      low: "gemini-3.5-flash-lite",
+      medium: "gemini-3.5-flash-lite",
+      high: "gemini-3.5-flash-lite",
+      xhigh: "gemini-3.5-flash-lite",
     },
-    defaultRequestId: "gemini-3.6-flash-low",
-  },
-  "gemini-3.5-flash": {
-    // Production still uses extra-low / low / gemini-3-flash-agent for Low/Medium/High.
-    off: "gemini-3.5-flash-extra-low",
-    routing: {
-      minimal: "gemini-3.5-flash-extra-low",
-      low: "gemini-3.5-flash-low",
-      medium: "gemini-3.5-flash-low",
-      high: "gemini-3-flash-agent",
-      xhigh: "gemini-3-flash-agent",
-    },
-    defaultRequestId: "gemini-3.5-flash-extra-low",
+    defaultRequestId: "gemini-3.5-flash-lite",
   },
   "gpt-oss-120b": {
     off: "gpt-oss-120b-medium",
@@ -112,9 +107,26 @@ export const ANTIGRAVITY_ROUTING: Record<string, AntigravityRouting> = {
  * Requesting more than these limits returns a 400 Bad Request from the API.
  */
 export const RUNTIME_MAX_OUTPUT_TOKENS: Record<string, number> = {
+  // Gemini 4 Argon publishes maxOutputTokens 65536 in fetchAvailableModels.
+  "gemini-4-argon": 65536,
+  "gemini-4-argon-low": 65536,
+  "gemini-4-argon-medium": 65536,
+  "gemini-4-argon-high": 65536,
+  "gemini-3.8-flash": 65536,
+  "gemini-3.8-flash-tiered": 65536,
+  "gemini-3.5-flash-lite": 65535,
+  // Claude 5.5 publishes maxOutputTokens 128000 in fetchAvailableModels.
+  "claude-opus-5-5": 128000,
+  "claude-opus-5-5-low": 128000,
+  "claude-opus-5-5-medium": 128000,
+  "claude-opus-5-5-high": 128000,
+  "claude-sonnet-5-5": 128000,
+  "claude-sonnet-5-5-low": 128000,
+  "claude-sonnet-5-5-medium": 128000,
+  "claude-sonnet-5-5-high": 128000,
+  // Retired runtime IDs stay listed for compatibility with pinned overrides.
   "gemini-3.7-flash": 65536,
   "gemini-3.7-flash-tiered": 65536,
-  // Retain rollout-era IDs for compatibility with pinned runtime overrides.
   "gemini-3.7-flash-low": 65536,
   "gemini-3.7-flash-medium": 65536,
   "gemini-3.7-flash-high": 65536,
@@ -200,8 +212,40 @@ const thinkingLevelMaps = {
 /** Same set as `agy models`, collapsed to public Pi model IDs. */
 export const ANTIGRAVITY_MODELS: ProviderModelConfig[] = [
   {
-    id: "gemini-3.7-flash",
-    name: "Gemini 3.7 Flash (Antigravity)",
+    id: "gemini-4-argon",
+    name: "Gemini 4 Argon (Antigravity)",
+    reasoning: true,
+    thinkingLevelMap: thinkingLevelMaps.lowMediumHigh,
+    input: ["text", "image"],
+    cost: freeCost,
+    // maxTokens and maxOutputTokens come straight from fetchAvailableModels.
+    contextWindow: 1048576,
+    maxTokens: 65536,
+  },
+  {
+    id: "claude-opus-5-5",
+    name: "Claude Opus 5.5 (Antigravity)",
+    reasoning: true,
+    thinkingLevelMap: thinkingLevelMaps.lowMediumHigh,
+    input: ["text", "image"],
+    cost: freeCost,
+    // maxTokens and maxOutputTokens come straight from fetchAvailableModels.
+    contextWindow: 1000000,
+    maxTokens: 128000,
+  },
+  {
+    id: "claude-sonnet-5-5",
+    name: "Claude Sonnet 5.5 (Antigravity)",
+    reasoning: true,
+    thinkingLevelMap: thinkingLevelMaps.lowMediumHigh,
+    input: ["text", "image"],
+    cost: freeCost,
+    contextWindow: 1000000,
+    maxTokens: 128000,
+  },
+  {
+    id: "gemini-3.8-flash",
+    name: "Gemini 3.8 Flash (Antigravity)",
     reasoning: true,
     thinkingLevelMap: thinkingLevelMaps.lowMediumHigh,
     input: ["text", "image"],
@@ -210,54 +254,15 @@ export const ANTIGRAVITY_MODELS: ProviderModelConfig[] = [
     maxTokens: 65536,
   },
   {
-    id: "gemini-3.6-flash",
-    name: "Gemini 3.6 Flash (Antigravity)",
-    reasoning: true,
-    thinkingLevelMap: thinkingLevelMaps.lowMediumHigh,
-    input: ["text", "image"],
-    cost: freeCost,
-    contextWindow: 1048576,
-    maxTokens: 65536,
-  },
-  {
-    id: "claude-opus-4-6",
-    name: "Claude Opus 4.6 (Antigravity)",
+    // One reasoning level only: the backend has no effort selector for this ID.
+    id: "gemini-3.5-flash-lite",
+    name: "Gemini 3.5 Flash Lite (Antigravity)",
     reasoning: true,
     thinkingLevelMap: thinkingLevelMaps.thinking,
-    input: ["text", "image"],
-    cost: freeCost,
-    contextWindow: 250000,
-    maxTokens: 64000,
-  },
-  {
-    id: "claude-sonnet-4-6",
-    name: "Claude Sonnet 4.6 (Antigravity)",
-    reasoning: true,
-    thinkingLevelMap: thinkingLevelMaps.thinking,
-    input: ["text", "image"],
-    cost: freeCost,
-    contextWindow: 200000,
-    maxTokens: 64000,
-  },
-  {
-    id: "gemini-3.1-pro",
-    name: "Gemini 3.1 Pro (Antigravity)",
-    reasoning: true,
-    thinkingLevelMap: thinkingLevelMaps.lowHigh,
     input: ["text", "image"],
     cost: freeCost,
     contextWindow: 1048576,
     maxTokens: 65535,
-  },
-  {
-    id: "gemini-3.5-flash",
-    name: "Gemini 3.5 Flash (Antigravity)",
-    reasoning: true,
-    thinkingLevelMap: thinkingLevelMaps.lowMediumHigh,
-    input: ["text", "image"],
-    cost: freeCost,
-    contextWindow: 1048576,
-    maxTokens: 65536,
   },
   {
     id: "gpt-oss-120b",
@@ -304,18 +309,45 @@ export function getAntigravityRequestModelId(modelId: string, effort: string | u
 }
 
 /**
- * If a next-gen model (e.g. Gemini 3.7 Flash) is not yet available on the backend,
- * provide a fallback runtime model ID (e.g. Gemini 3.6 Flash) to maintain availability.
+ * If a Gemini runtime is unavailable, either because a next-gen model has not
+ * rolled out to this account yet or because the backend retired it, provide the
+ * serving runtime ID instead so the turn still answers. Every Gemini fallback
+ * lands on gemini-3.5-flash-lite, the only other serving Gemini runtime as of
+ * 2026-10-07.
  */
 export function getFallbackRuntimeModel(runtimeModel: string, effort?: string): string | undefined {
-  if (runtimeModel === "gemini-3.7-flash-tiered") {
-    return getAntigravityRequestModelId("gemini-3.6-flash", effort);
+  if (runtimeModel.startsWith("gemini-4-argon")) {
+    return "gemini-3.8-flash-tiered";
   }
-  if (runtimeModel.startsWith("gemini-3.7-flash-")) {
-    return runtimeModel.replace("gemini-3.7-flash-", "gemini-3.6-flash-");
+  if (runtimeModel === "gemini-3.8-flash-tiered") {
+    return getAntigravityRequestModelId("gemini-3.5-flash-lite", effort);
   }
-  if (runtimeModel === "gemini-3.7-flash") {
-    return "gemini-3.6-flash-low";
+  if (runtimeModel.startsWith("gemini-3.8-flash-")) {
+    return runtimeModel.replace("gemini-3.8-flash-", "gemini-3.5-flash-");
+  }
+  if (runtimeModel === "gemini-3.8-flash") {
+    return "gemini-3.5-flash-lite";
+  }
+  // The 3.7 and 3.6 runtimes were retired on 2026-10-07, so their only
+  // serving fallback is the lite runtime.
+  if (runtimeModel === "gemini-3.7-flash-tiered" || runtimeModel.startsWith("gemini-3.7-flash-")) {
+    return "gemini-3.5-flash-lite";
+  }
+  if (runtimeModel === "gemini-3.6-flash-tiered" || runtimeModel.startsWith("gemini-3.6-flash-")) {
+    return "gemini-3.5-flash-lite";
+  }
+  if (runtimeModel === "gemini-3.7-flash" || runtimeModel === "gemini-3.6-flash") {
+    return "gemini-3.5-flash-lite";
   }
   return undefined;
+}
+
+/**
+ * A tiered runtime serves every thinking level from one model ID, so the effort
+ * travels in generationConfig.thinkingConfig instead of in the model ID.
+ * Keep this suffix-based: new Gemini Flash releases arrive as `*-tiered` before
+ * this package learns their names.
+ */
+export function isTieredRuntimeModel(runtimeModel: string): boolean {
+  return runtimeModel.endsWith("-tiered");
 }

@@ -59,11 +59,20 @@ export function endpointCandidates(): string[] {
   return explicit ? [assertSafeApiBaseUrl(explicit)] : ENDPOINT_FALLBACKS;
 }
 
+/**
+ * The backend gates catalog size and model availability by User-Agent family.
+ * Verified 2026-10-07 against daily-cloudcode-pa.googleapis.com:
+ * - `antigravity/1.15.8 <os>/<arch>` (what this package sent before) returned a
+ *   23-id catalog and made `gemini-4-argon-*` answer 404, while `agy models`
+ *   listed those models as available.
+ * - `antigravity/cli/1.4.0` returns a 29-id catalog including Gemini 4 Argon,
+ *   and serves every runtime this package registers. The short form is enough:
+ *   the official CLI's extra parenthetical and its `cl=` number change nothing,
+ *   and a non-`cli` UA form answered 403 for the same request.
+ * Override with ANTIGRAVITY_USER_AGENT when Google moves the floor again.
+ */
 function defaultUserAgent(): string {
-  const os =
-    process.platform === "darwin" ? "darwin" : process.platform === "win32" ? "windows" : "linux";
-  const arch = process.arch === "x64" ? "amd64" : process.arch;
-  return `antigravity/1.15.8 ${os}/${arch}`;
+  return "antigravity/cli/1.4.0";
 }
 
 export function antigravityHeaders(token: string): Record<string, string> {
@@ -207,15 +216,11 @@ export function isUsableRuntimeModelId(id: string): boolean {
 function buildModelMatchRegex(requestedId: string): RegExp {
   const req = requestedId.toLowerCase();
   // Display names from fetchAvailableModels (keys are the real runtime ids):
-  //   gemini-3.7-flash-low       → "Gemini 3.7 Flash (Low)"
-  //   gemini-3.7-flash-medium    → "Gemini 3.7 Flash (Medium)"
-  //   gemini-3.7-flash-high      → "Gemini 3.7 Flash (High)"
-  //   gemini-3.6-flash-low       → "Gemini 3.6 Flash (Low)"
-  //   gemini-3.6-flash-medium    → "Gemini 3.6 Flash (Medium)"
-  //   gemini-3.6-flash-high      → "Gemini 3.6 Flash (High)"
-  //   gemini-3.5-flash-extra-low → "Gemini 3.5 Flash (Low)"
-  //   gemini-3.5-flash-low       → "Gemini 3.5 Flash (Medium)"
-  //   gemini-3-flash-agent       → "Gemini 3.5 Flash (High)"
+  //   claude-sonnet-5-5-high   → "Claude Sonnet 5.5 (High)"
+  //   claude-opus-5-5-high     → "Claude Opus 5.5 (High)"
+  //   gemini-3.5-flash-lite    → "Gemini 3.5 Flash Lite"
+  //   gemini-3.8-flash-tiered  → no display name
+  // Retired ids keep their patterns so a pinned runtime override still resolves.
   if (req === "gemini-3.7-flash-low") return /gemini[- ]3\.7[- ]flash \(low\)/i;
   if (req === "gemini-3.7-flash-medium") return /gemini[- ]3\.7[- ]flash \(medium\)/i;
   if (req === "gemini-3.7-flash-high") return /gemini[- ]3\.7[- ]flash \(high\)/i;
@@ -227,6 +232,9 @@ function buildModelMatchRegex(requestedId: string): RegExp {
     return /gemini[- ]3\.5[- ]flash \(medium\)/i;
   if (req === "gemini-3.5-flash-high" || req === "gemini-3-flash-agent")
     return /gemini[- ]3\.5[- ]flash \(high\)/i;
+  if (req.includes("gemini-4-argon")) return /gemini[- ]4[- ]argon/i;
+  if (req.includes("claude-opus-5-5")) return /claude.*opus.*5\.5/i;
+  if (req.includes("claude-sonnet-5-5")) return /claude.*sonnet.*5\.5/i;
   if (req.includes("claude-opus-4-6")) return /claude.*opus.*4\.6/i;
   if (req.includes("claude-sonnet-4-6")) return /claude.*sonnet.*4\.6/i;
   if (req.includes("gpt-oss-120b")) return /gpt.*oss.*120b/i;
