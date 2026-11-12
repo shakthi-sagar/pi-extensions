@@ -78,10 +78,10 @@ function splitEvery(text: string, size: number): string[] {
   return out;
 }
 
-async function run(chunks: string[]) {
+async function run(chunks: string[], tools?: Tool[]) {
   const stream = createAssistantMessageEventStream();
   const output = makeOutput();
-  const hasContent = await streamResponse(responseFromChunks(chunks), stream, output);
+  const hasContent = await streamResponse(responseFromChunks(chunks), stream, output, tools);
   stream.end();
   const events: string[] = [];
   for await (const event of stream) events.push(event.type);
@@ -138,7 +138,97 @@ async function main() {
   const { hasContent } = await run([truncated.slice(0, 40), truncated.slice(40)]);
   assert(hasContent, "truncated body: expected content");
 
-  console.log(`stream SSE: ${sizes.length} chunk-boundary cases passed`);
+  // A failed finish without recovery must carry a concrete errorMessage. Pi reports "Unknown error"
+  // without one, which is what hid the MALFORMED_FUNCTION_CALL failures.
+  const MALFORMED_BODY =
+    sse({
+      response: {
+        candidates: [
+          {
+            content: { parts: [{ text: 'call:read_file{"file_path":"AGENTS.md"}' }] },
+            finishReason: "MALFORMED_FUNCTION_CALL",
+            finishMessage: 'Malformed function call: call:read_file{"file_path":"AGENTS.md"}',
+          },
+        ],
+        usageMetadata: { promptTokenCount: 104, candidatesTokenCount: 15, totalTokenCount: 241 },
+      },
+    }) +
+    "data: [DONE]\n";
+  const malformed = await run([MALFORMED_BODY]);
+  assert(malformed.output.stopReason === "error", `malformed: stopReason ${malformed.output.stopReason}`);
+  assert(
+    typeof malformed.output.errorMessage === "string" &&
+      malformed.output.errorMessage.includes("MALFORMED_FUNCTION_CALL") &&
+      malformed.output.errorMessage.includes("Malformed function call"),
+    `malformed: errorMessage was ${JSON.stringify(malformed.output.errorMessage)}`,
+  );
+
+  // MALFORMED_FUNCTION_CALL recovery: call:google:exec mapped to bash
+  const malformedBracedBody =
+    sse({
+      response: {
+        candidates: [
+          {
+            content: { parts: [{ text: "", thoughtSignature: "sig-test-123" }] },
+            finishReason: "MALFORMED_FUNCTION_CALL",
+            finishMessage:
+              'Malformed function call: call:google:exec{command:r"rig whoami --json"}',
+          },
+        ],
+      },
+    }) + "data: [DONE]\n";
+
+  const tools = [{ name: "bash", description: "Run bash command", parameters: {} }];
+  const malformedRun = await run([malformedBracedBody], tools);
+  assert(malformedRun.hasContent, "malformed function call: expected content");
+  const recoveredToolCalls = malformedRun.output.content.filter((b) => b.type === "toolCall");
+  assert(recoveredToolCalls.length === 1, "expected 1 recovered tool call");
+  assert(
+    (recoveredToolCalls[0] as { name: string }).name === "bash",
+    "expected tool mapped to bash",
+  );
+  assert(
+    ((recoveredToolCalls[0] as { arguments: { command: string } }).arguments).command ===
+      "rig whoami --json",
+    "expected command extracted",
+  );
+  assert(
+    (recoveredToolCalls[0] as { thoughtSignature?: string }).thoughtSignature === "sig-test-123",
+    "expected thoughtSignature preserved",
+  );
+  assert(
+    malformedRun.output.stopReason === "toolUse",
+    `expected stopReason toolUse, got ${malformedRun.output.stopReason}`,
+  );
+  assert(
+    malformedRun.output.content.filter((b) => b.type === "text").length === 0,
+    "empty text part with thoughtSignature should not create empty text block",
+  );
+
+  // MALFORMED_FUNCTION_CALL recovery: code block format
+  const malformedBlockBody =
+    sse({
+      response: {
+        candidates: [
+          {
+            content: { parts: [{ text: "" }] },
+            finishReason: "MALFORMED_FUNCTION_CALL",
+            finishMessage:
+              "Malformed function call: call:bash\n```call:bash\necho hello\n```",
+          },
+        ],
+      },
+    }) + "data: [DONE]\n";
+
+  const blockRun = await run([malformedBlockBody], tools);
+  const blockCalls = blockRun.output.content.filter((b) => b.type === "toolCall");
+  assert(blockCalls.length === 1, "expected 1 recovered tool call from code block");
+  assert(
+    (blockCalls[0] as { arguments: { command: string } }).arguments.command === "echo hello",
+    "expected code block command extracted",
+  );
+
+  console.log(`stream SSE: ${sizes.length} chunk-boundary cases and malformed recovery passed`);
 }
 
 void main().catch((error: unknown) => {
